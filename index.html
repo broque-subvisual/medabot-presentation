@@ -1020,12 +1020,12 @@ p  { margin: 0; color: var(--ink-2); }
 .end-slide {
   text-align: center;
 }
-.end-inner { max-width: 680px; margin: 0 auto; }
-.end-inner h2 { text-wrap: balance; }
+.end-inner { max-width: 720px; margin: 0 auto; }
+.end-inner h2 { text-wrap: balance; font-size: clamp(32px, min(4.5vw, 6.5vh), 56px); }
 .end-inner p { margin-top: 16px; font-size: 16px; color: var(--ink-2); }
-.end-links { margin-top: 34px; display: flex; flex-wrap: wrap; gap: 28px; justify-content: center; }
-.end-links a { font-size: 14px; color: var(--ink-2); }
-.end-meta { margin-top: 40px; font-size: 12px; color: var(--ink-4); font-family: var(--mono); letter-spacing: 0.08em; }
+.end-links { margin-top: 48px; display: flex; flex-wrap: wrap; gap: 36px; justify-content: center; }
+.end-links a { font-size: 15px; color: var(--ink-2); }
+.end-meta { margin-top: 56px; font-size: 13px; color: var(--ink-4); font-family: var(--mono); letter-spacing: 0.08em; }
 
 /* ---------- Mobile fallback (<768px): stack normally ---------- */
 @media (max-width: 767px) {
@@ -1589,8 +1589,8 @@ p  { margin: 0; color: var(--ink-2); }
   <div class="slide-inner">
     <div class="end-inner">
       <div class="s-index reveal" style="text-align:left;">08 / End</div>
-      <h2 id="h-end" class="reveal" style="--d:80ms; margin-top:16px;">Obrigado por ver até ao fim.</h2>
-      <div class="cta-row reveal" style="--d:240ms; justify-content:center;">
+      <h2 id="h-end" class="reveal" style="--d:80ms; margin-top:24px;">Obrigado por ver até ao fim.</h2>
+      <div class="cta-row reveal" style="--d:240ms; justify-content:center; margin-top:36px;">
         <a class="btn btn-primary" href="https://broque-subvisual.github.io/medabot-prototype/" target="_blank" rel="noopener">
           Abrir o protótipo
           <svg class="arrw" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M9 7h8v8"/></svg>
@@ -1598,7 +1598,7 @@ p  { margin: 0; color: var(--ink-2); }
       </div>
       <nav class="end-links reveal" style="--d:320ms" aria-label="External links">
         <a class="ul-link" href="https://www.linkedin.com/in/broqueav/" target="_blank">LinkedIn</a>
-        <a class="ul-link" href="mailto:broque.av@gmail.com">Email</a>
+        <a class="ul-link" href="#" id="copyEmail" onclick="navigator.clipboard.writeText('broque.av@gmail.com');this.textContent='Copiado!';setTimeout(()=>this.textContent='broque.av@gmail.com',2000);return false;">broque.av@gmail.com</a>
       </nav>
       <div class="end-meta reveal" style="--d:400ms">Subvisual apprenticeship · 2026</div>
     </div>
