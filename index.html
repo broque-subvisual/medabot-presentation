@@ -1,0 +1,1887 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MedaBot, case study</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:            #0A0E1A;
+  --bg-elev:       #0F1424;
+  --bg-elev-2:     #151B2E;
+  --hairline:      rgba(255,255,255,0.08);
+  --hairline-2:    rgba(255,255,255,0.14);
+  --ink:           #F5F7FF;
+  --ink-2:         #B4BDD4;
+  --ink-3:         #727C95;
+  --ink-4:         #4A5470;
+
+  --brand:         #0052CC;
+  --brand-lift:    #2E74E0;
+  --brand-ink:     #A8C5F5;
+  --brand-tint:    rgba(0, 82, 204, 0.14);
+  --brand-wash:    rgba(0, 82, 204, 0.06);
+
+  --danger:        #F87171;
+  --warning:       #F59E0B;
+  --success:       #34D399;
+
+  --sans: 'DM Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --mono: 'DM Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --e-out:   cubic-bezier(0.22, 1, 0.36, 1);
+  --e-inout: cubic-bezier(0.65, 0, 0.35, 1);
+
+  --gutter: clamp(20px, 4vw, 72px);
+  --fade-ms: 500ms;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "ss01", "ss02", "cv11";
+  overflow: hidden;
+}
+::selection { background: var(--brand); color: #fff; }
+
+body::before{
+  content:"";
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(1200px 800px at 80% -10%, rgba(0,82,204,0.08), transparent 60%),
+    radial-gradient(900px 600px at -10% 20%, rgba(0,82,204,0.05), transparent 55%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+img, svg { display: block; max-width: 100%; }
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; }
+
+/* ---------- Typography ---------- */
+.mono { font-family: var(--mono); font-weight: 500; letter-spacing: 0.02em; }
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  display: inline-flex; align-items: center; gap: 10px;
+}
+.eyebrow .dot { width:6px; height:6px; border-radius:50%; background: var(--brand); box-shadow: 0 0 0 4px var(--brand-tint); }
+
+h1, h2, h3, h4 { margin: 0; letter-spacing: -0.02em; font-weight: 700; }
+h1 { font-size: clamp(34px, min(6vw, 8.5vh), 88px); line-height: 1.0; letter-spacing: -0.035em; }
+h2 { font-size: clamp(24px, min(3.6vw, 5.2vh), 48px); line-height: 1.05; letter-spacing: -0.028em; }
+h3 { font-size: clamp(18px, min(1.9vw, 2.6vh), 24px); line-height: 1.2; letter-spacing: -0.02em; font-weight: 600; }
+p  { margin: 0; color: var(--ink-2); }
+
+.s-index { font-family: var(--mono); font-size: 11px; color: var(--ink-4); letter-spacing: 0.14em; text-transform: uppercase; }
+
+/* ---------- Crossfade stage (desktop) ---------- */
+.stage {
+  position: fixed; inset: 0;
+  z-index: 1;
+}
+.slide {
+  position: absolute; inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--fade-ms) var(--e-inout);
+  display: flex;
+  overflow: hidden;
+}
+.slide.is-active {
+  opacity: 1;
+  pointer-events: auto;
+  z-index: 2;
+}
+/* a slide also stays briefly during fade-out so we can crossfade */
+.slide.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.slide-inner {
+  margin: auto;
+  /* top padding clears the fixed chrome (brandmark + counter sit ~24px + ~26px tall) */
+  padding: clamp(64px, 8vh, 96px) var(--gutter) clamp(56px, 7vh, 80px);
+  width: 100%;
+  max-width: 1280px;
+  max-height: 100vh;
+  /* Safety net: if a laptop is genuinely too short, allow scroll rather than clip silently.
+     Hide the scrollbar so it still reads as a fixed presentation. */
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+.slide-inner::-webkit-scrollbar { display: none; }
+
+/* ---------- Reveal (per-slide, once active) ---------- */
+.reveal {
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 520ms var(--e-out), transform 520ms var(--e-out);
+  transition-delay: var(--d, 0ms);
+}
+.slide.is-active .reveal { opacity: 1; transform: none; }
+
+/* ---------- Chrome ---------- */
+.chrome { position: fixed; z-index: 50; color: var(--ink); pointer-events: none; }
+.chrome > * { pointer-events: auto; }
+
+.brandmark { display: inline-flex; align-items: center; gap: 10px; }
+.brandmark .brand-logo { height: 22px; width: auto; display: block; filter: brightness(0) invert(1); opacity: 0.92; transition: opacity 240ms var(--e-out); }
+.brandmark:hover .brand-logo { opacity: 1; }
+.brandmark .glyph {
+  width: 26px; height: 26px; border-radius: 8px;
+  background: var(--brand);
+  display: grid; place-items: center;
+  color: #fff; font-weight: 700; font-size: 14px;
+  box-shadow: 0 2px 8px rgba(0, 82, 204, 0.4), inset 0 0 0 1px rgba(255,255,255,0.1);
+}
+
+.topleft { top: 24px; left: 24px; display: flex; align-items: center; gap: 16px; }
+.topright { top: 24px; right: 24px; display: flex; align-items: center; gap: 14px; }
+
+.counter {
+  font-family: var(--mono); font-size: 12px;
+  color: var(--ink-3);
+  letter-spacing: 0.1em;
+  display: inline-flex; align-items: baseline; gap: 4px;
+}
+.counter .cur { color: var(--ink); }
+.counter .sep { color: var(--ink-4); }
+
+.progress {
+  position: fixed; top: 0; left: 0; right: 0;
+  height: 2px; background: transparent;
+  z-index: 49;
+}
+.progress .bar {
+  height: 100%;
+  background: var(--brand);
+  width: 0%;
+  transition: width 480ms var(--e-out);
+  box-shadow: 0 0 10px rgba(0,82,204,0.55);
+}
+
+/* Right-edge dot nav */
+.dots {
+  position: fixed;
+  right: 20px; top: 50%;
+  transform: translateY(-50%);
+  display: flex; flex-direction: column;
+  gap: 10px;
+  z-index: 50;
+}
+.dots button {
+  width: 24px; height: 24px;
+  border-radius: 99px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: grid; place-items: center;
+  position: relative;
+}
+.dots button .d {
+  width: 8px; height: 8px; border-radius: 99px;
+  background: rgba(255,255,255,0.15);
+  transition: background 300ms var(--e-out), transform 300ms var(--e-out), box-shadow 300ms var(--e-out);
+}
+.dots button:hover .d { background: rgba(255,255,255,0.35); transform: scale(1.2); }
+.dots button.on .d { background: var(--brand); box-shadow: 0 0 0 4px var(--brand-tint); transform: scale(1); }
+.dots button .tip {
+  position: absolute; right: 36px; top: 50%;
+  transform: translateY(-50%) translateX(4px);
+  background: var(--bg-elev-2);
+  color: var(--ink);
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  white-space: nowrap;
+  font-family: var(--mono);
+  letter-spacing: 0.04em;
+  border: 1px solid var(--hairline);
+  opacity: 0; pointer-events: none;
+  transition: opacity 240ms var(--e-out), transform 240ms var(--e-out);
+}
+.dots button:hover .tip, .dots button:focus-visible .tip {
+  opacity: 1; transform: translateY(-50%) translateX(0);
+}
+
+/* Prev/next arrows */
+.arrows {
+  position: fixed; bottom: 24px; left: 0; right: 0;
+  display: flex; justify-content: space-between;
+  padding: 0 24px;
+  z-index: 50;
+  pointer-events: none;
+}
+.arrows .arr {
+  pointer-events: auto;
+  width: 44px; height: 44px; border-radius: 99px;
+  background: rgba(15, 20, 36, 0.65);
+  border: 1px solid var(--hairline);
+  backdrop-filter: blur(10px);
+  display: grid; place-items: center;
+  color: var(--ink-2);
+  transition: color 240ms var(--e-out), border-color 240ms var(--e-out), background 240ms var(--e-out), transform 240ms var(--e-out);
+}
+.arrows .arr:hover { color: var(--ink); border-color: var(--hairline-2); background: rgba(15,20,36,0.85); transform: scale(1.04); }
+.arrows .arr[disabled] { opacity: 0.35; pointer-events: none; }
+.arrows .arr svg { width: 16px; height: 16px; }
+
+.scroll-hint {
+  position: fixed; bottom: 40px; left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--mono); font-size: 11px;
+  color: var(--ink-3);
+  letter-spacing: 0.14em; text-transform: uppercase;
+  z-index: 49;
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  border-radius: 99px;
+  border: 1px solid var(--hairline);
+  background: rgba(10,14,26,0.5);
+  backdrop-filter: blur(8px);
+  transition: opacity 400ms var(--e-out), transform 400ms var(--e-out);
+}
+.scroll-hint.is-hidden { opacity: 0; transform: translate(-50%, 8px); pointer-events: none; }
+.scroll-hint .arw {
+  display: inline-block; animation: nudge 1.6s var(--e-inout) infinite;
+}
+@keyframes nudge {
+  0%, 100% { transform: translateY(0); opacity: 0.6; }
+  50% { transform: translateY(3px); opacity: 1; }
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 13px 20px;
+  border-radius: 12px;
+  font-size: 14px; font-weight: 500;
+  border: 1px solid transparent;
+  transition: transform 280ms var(--e-out), background 280ms var(--e-out),
+              color 280ms var(--e-out), border-color 280ms var(--e-out),
+              box-shadow 280ms var(--e-out);
+}
+.btn:hover { transform: scale(1.02); }
+.btn:active { transform: scale(0.99); }
+.btn-primary {
+  background: var(--brand); color: #fff;
+  box-shadow: 0 6px 18px rgba(0, 82, 204, 0.35), inset 0 0 0 1px rgba(255,255,255,0.08);
+}
+.btn-primary:hover { background: var(--brand-lift); box-shadow: 0 10px 28px rgba(0, 82, 204, 0.45); }
+.btn-ghost { background: transparent; color: var(--ink); border-color: var(--hairline-2); }
+.btn-ghost:hover { border-color: var(--ink-2); background: rgba(255,255,255,0.03); }
+.btn .arrw { width: 14px; height: 14px; transition: transform 280ms var(--e-out); }
+.btn:hover .arrw { transform: translate(2px, -2px); }
+
+.ul-link {
+  position: relative; color: var(--ink); padding-bottom: 2px; font-weight: 500;
+}
+.ul-link::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0;
+  height: 1px; background: currentColor;
+  transform: scaleX(0.2); transform-origin: left;
+  transition: transform 400ms var(--e-out);
+}
+.ul-link:hover::after { transform: scaleX(1); }
+
+/* ---------- Section layout helpers ---------- */
+.two-col {
+  display: grid; grid-template-columns: 1fr; gap: clamp(24px, 4vh, 44px);
+  align-items: center;
+}
+@media (min-width: 960px) {
+  .two-col { grid-template-columns: 1.25fr 0.75fr; gap: clamp(32px, 5vw, 80px); }
+}
+
+.s-head { max-width: 820px; margin-bottom: clamp(20px, 3vh, 40px); }
+.s-head h2 { margin-top: 12px; text-wrap: balance; }
+.s-head p { margin-top: 12px; color: var(--ink-2); font-size: clamp(14px, min(1.2vw, 1.8vh), 17px); line-height: 1.5; text-wrap: pretty; max-width: 64ch; }
+
+/* ---------- HERO ---------- */
+.hero-copy { max-width: 620px; }
+.hero-copy h1 {
+  margin-top: 18px;
+  font-size: clamp(36px, min(5vw, 8vh), 72px);
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+  font-weight: 500;
+  text-wrap: balance;
+  max-width: 16ch;
+}
+.hero-copy h1 .ln { display: inline; }
+.hero-copy h1 .bw { color: var(--brand-ink); font-style: italic; font-weight: 400; }
+.hero-tag {
+  margin-top: 20px;
+  font-size: clamp(15px, min(1.3vw, 2vh), 19px);
+  line-height: 1.5;
+  color: var(--ink-2);
+  max-width: 52ch;
+  text-wrap: pretty;
+}
+.hero-meta {
+  display: flex; flex-wrap: wrap; gap: 10px 22px;
+  margin-bottom: 20px;
+  font-size: 11px; color: var(--ink-3);
+  font-family: var(--mono);
+  letter-spacing: 0.04em;
+}
+.hero-meta .sep { width: 4px; height: 4px; border-radius: 50%; background: var(--ink-4); display: inline-block; }
+.cta-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+
+.hero-aside {
+  display: flex; justify-content: center; align-items: center;
+  position: relative;
+}
+
+/* ---------- Hero pill animation ---------- */
+.pill-stage {
+  position: relative;
+  width: min(100%, 460px);
+  aspect-ratio: 1 / 1;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: clamp(32px, 6vh, 72px); /* keep clear of scroll hint */
+}
+.pill-stage .pill-rings {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  pointer-events: none;
+}
+.pill-stage .pill-rings span {
+  position: absolute;
+  width: 70%; height: 70%;
+  border-radius: 999px;
+  border: 1px solid rgba(168, 197, 245, 0.26);
+  animation: pillRing 4.8s var(--e-out) infinite;
+  opacity: 0;
+}
+.pill-stage .pill-rings span:nth-child(2) { animation-delay: 1.6s; }
+.pill-stage .pill-rings span:nth-child(3) { animation-delay: 3.2s; }
+@keyframes pillRing {
+  0%   { transform: scale(0.55); opacity: 0; }
+  18%  { opacity: 0.9; }
+  100% { transform: scale(1.55); opacity: 0; }
+}
+.pill-wrap {
+  position: relative;
+  width: 78%; height: 78%;
+  display: grid; place-items: center;
+  animation: pillFloat 6.4s ease-in-out infinite;
+}
+@keyframes pillFloat {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-10px); }
+}
+.pill-svg {
+  width: 100%; height: 100%;
+  overflow: visible;
+  animation: pillTurn 9s ease-in-out infinite;
+  transform-origin: center;
+}
+@keyframes pillTurn {
+  0%   { transform: rotate(-14deg) scale(1); }
+  50%  { transform: rotate(10deg)  scale(1.03); }
+  100% { transform: rotate(-14deg) scale(1); }
+}
+.pill-capsule { transform-origin: center; transform-box: fill-box; }
+.pill-a { animation: pillSpinA 10s ease-in-out infinite; }
+@keyframes pillSpinA {
+  0%, 100% { transform: rotate(-6deg); }
+  50%      { transform: rotate(6deg); }
+}
+.pill-half-l { animation: pillShiftL 6s ease-in-out infinite; }
+.pill-half-r { animation: pillShiftR 6s ease-in-out infinite; }
+@keyframes pillShiftL {
+  0%, 100% { transform: translateX(-4px); }
+  50%      { transform: translateX(-14px); }
+}
+@keyframes pillShiftR {
+  0%, 100% { transform: translateX(4px); }
+  50%      { transform: translateX(14px); }
+}
+.pill-caption {
+  position: absolute; left: 0; right: 0; bottom: 6%;
+  text-align: center;
+  font-size: 11px;
+  color: var(--ink-3);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pill-wrap, .pill-svg, .pill-a, .pill-half-l, .pill-half-r, .pill-rings span {
+    animation: none !important;
+  }
+}
+
+/* ---------- iPhone frame ---------- */
+.phone {
+  /* aspect ratio is 393:852 ≈ 0.46. To keep phone height ≤ Xvh, width ≤ X*0.46vh. */
+  width: clamp(150px, min(20vw, 28vh), 240px);
+  aspect-ratio: 393/852; position: relative;
+  border-radius: 38px;
+  padding: 8px;
+  background: linear-gradient(180deg, #1A2036 0%, #0D1120 100%);
+  box-shadow:
+    0 30px 60px rgba(0,0,0,0.5),
+    0 0 0 1px rgba(255,255,255,0.08),
+    inset 0 0 0 1px rgba(255,255,255,0.04);
+  flex-shrink: 0;
+}
+.phone::before, .phone::after {
+  content: ""; position: absolute; width: 3px; background: #2A3250; border-radius: 2px;
+}
+.phone::before { left: -3px; top: 110px; height: 38px; box-shadow: 0 54px 0 #2A3250, 0 98px 0 #2A3250; }
+.phone::after { right: -3px; top: 140px; height: 68px; }
+
+.phone-screen {
+  position: relative;
+  border-radius: 36px; overflow: hidden;
+  background: #F5F7FF; color: #0F172A;
+  width: 100%; height: 100%;
+  font-size: 14px;
+  display: flex; flex-direction: column;
+}
+.phone-notch {
+  position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+  width: 96px; height: 24px; border-radius: 14px; background: #0A0E1A;
+  z-index: 5;
+}
+.ios-status {
+  height: 40px; padding: 0 18px;
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 13px; font-weight: 600; color: #0F172A; flex-shrink: 0;
+}
+.ios-status .icons { display: flex; gap: 5px; align-items: center; }
+
+.app-home { padding: 4px 14px 0; flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.app-home .greet { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: #0F172A; }
+.app-home .greet .name { color: #0052CC; }
+.app-home .subtitle { color: #475569; font-size: 12px; margin-top: 2px; }
+
+.searchbar {
+  margin-top: 16px; background: #fff; border-radius: 14px;
+  padding: 11px 13px; display: flex; align-items: center; gap: 10px;
+  box-shadow: 0 0 30px rgba(0,0,0,0.05), inset 0 0 0 1px #E2E8F0;
+  color: #5F738C; font-size: 13px;
+}
+.searchbar .icon-search {
+  width: 14px; height: 14px; border: 1.5px solid #5F738C; border-radius: 50%; position: relative;
+}
+.searchbar .icon-search::after { content: ""; position: absolute; right: -5px; bottom: -5px; width: 7px; height: 1.5px; background: #5F738C; transform: rotate(45deg); border-radius: 1px; }
+.section-label { margin-top: 16px; font-size: 10px; font-weight: 600; color: #5F738C; letter-spacing: 0.08em; text-transform: uppercase; }
+.med-card {
+  margin-top: 8px; background: #fff; border-radius: 14px;
+  padding: 12px; display: flex; align-items: center; gap: 11px;
+  box-shadow: 0 1px 3px rgba(18,23,71,0.06);
+}
+.med-card .pill-icon {
+  width: 32px; height: 32px; border-radius: 9px;
+  background: #E5EFFF; display: grid; place-items: center;
+  color: #0052CC; font-size: 15px; font-weight: 700; flex-shrink: 0;
+}
+.med-card .copy { flex: 1; min-width: 0; }
+.med-card .t1 { font-size: 13px; font-weight: 600; color: #0F172A; }
+.med-card .t2 { font-size: 11px; color: #5F738C; margin-top: 2px; }
+.med-card .chev { color: #B0BEC5; font-size: 14px; }
+.fab {
+  position: absolute; right: 18px; bottom: 22px;
+  width: 50px; height: 50px; border-radius: 99px;
+  background: #0052CC; display: grid; place-items: center; color: #fff;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2), 0 0 0 4px rgba(0,82,204,0.15);
+  z-index: 4; border: 0;
+}
+.fab svg { width: 20px; height: 20px; }
+.ios-home-ind { position: absolute; bottom: 7px; left: 50%; transform: translateX(-50%); width: 110px; height: 4px; border-radius: 2px; background: #0F172A; opacity: 0.9; }
+.ai-footer {
+  margin: 12px -14px 0; padding: 8px 14px;
+  font-size: 9px; color: #475569;
+  border-top: 1px solid #E2E8F0; background: #EFF3FF;
+  text-align: center;
+}
+
+/* Result variant */
+.app-result { padding: 4px 14px 0; flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.app-result .navbar { display: flex; align-items: center; justify-content: space-between; padding: 4px 0 8px; font-size: 15px; font-weight: 600; color: #0F172A; }
+.app-result .navbar .back { color: #0052CC; font-size: 18px; line-height: 1; }
+.app-result .navbar .avatar { width: 26px; height: 26px; border-radius: 99px; background: linear-gradient(135deg, #DBEAFE, #A8C5F5); }
+.app-result .med-title { font-size: 18px; font-weight: 700; color: #0F172A; letter-spacing: -0.01em; margin-top: 8px; }
+.app-result .med-sub { font-size: 11px; color: #5F738C; margin-top: 2px; }
+.app-result .pbar { margin-top: 8px; display: inline-flex; align-items: center; gap: 6px; font-size: 10px; color: #1E40AF; background: #E5EFFF; padding: 5px 10px; border-radius: 99px; align-self: flex-start; }
+.info-block { margin-top: 12px; background: #fff; border-radius: 14px; padding: 12px; box-shadow: 0 1px 3px rgba(18,23,71,0.06); }
+.info-block .ib-title { font-size: 10px; font-weight: 600; color: #5F738C; letter-spacing: 0.08em; text-transform: uppercase; }
+.info-block p { font-size: 12px; color: #0F172A; margin-top: 5px; line-height: 1.45; }
+.chip-row { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+.chip { padding: 7px 10px; border-radius: 99px; font-size: 11px; font-weight: 500; background: #fff; color: #0F172A; border: 1px solid #E2E8F0; }
+.chip.on { background: #0052CC; color: #fff; border-color: #0052CC; }
+
+/* Chat variant */
+.app-chat { padding: 4px 14px 0; flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.chat-list { flex: 1; overflow: hidden; padding-top: 6px; }
+.bubble { max-width: 85%; padding: 9px 11px; border-radius: 12px; font-size: 12px; line-height: 1.4; margin-bottom: 8px; }
+.bubble.user { margin-left: auto; background: #0052CC; color: #fff; border-top-right-radius: 4px; }
+.bubble.ai { background: #fff; color: #0F172A; border: 1px solid #E2E8F0; border-top-left-radius: 4px; }
+.bubble.ai strong { color: #0052CC; font-weight: 600; }
+.danger-banner {
+  margin-top: 8px; background: #FEF2F2; color: #991B1B;
+  border: 1px solid #FECACA; border-radius: 10px; padding: 9px 11px;
+  font-size: 10.5px; display: flex; gap: 8px; align-items: flex-start;
+}
+.danger-banner .ico { flex: 0 0 16px; width: 16px; height: 16px; border-radius: 50%; background: #DC2626; color: #fff; display: grid; place-items: center; font-size: 10px; font-weight: 700; }
+.inputbar {
+  background: #fff; border: 1px solid #E2E8F0; border-radius: 14px;
+  padding: 9px 11px; margin-bottom: 10px;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; color: #5F738C;
+}
+.inputbar .spark { color: #0052CC; }
+
+/* Scan variant */
+.app-scan { flex: 1; background: #0A0E1A; color: #fff; position: relative; display: flex; flex-direction: column; padding: 10px; }
+.app-scan .vf {
+  flex: 1; border: 2px dashed rgba(255,255,255,0.6);
+  border-radius: 22px; margin: 16px 4px;
+  background: radial-gradient(circle at 50% 55%, rgba(255,255,255,0.06), transparent 70%);
+}
+.app-scan .hint { text-align: center; font-size: 12px; color: rgba(255,255,255,0.85); padding-bottom: 8px; }
+.app-scan .shutter { align-self: center; width: 56px; height: 56px; border-radius: 99px; background: #fff; border: 4px solid rgba(255,255,255,0.4); margin-bottom: 6px; }
+
+/* ---------- Problem slide ---------- */
+.problem-grid { display: grid; grid-template-columns: 1fr; gap: clamp(18px, 2.6vh, 32px); }
+@media (min-width: 820px) { .problem-grid { grid-template-columns: 1fr 1fr; gap: clamp(20px, 2.6vw, 40px); } }
+.panel {
+  border: 1px solid var(--hairline);
+  border-radius: 18px;
+  padding: clamp(20px, 2.6vh, 28px);
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
+}
+.panel .panel-kicker { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--brand-ink); }
+.panel h3 { margin-top: 14px; font-size: clamp(20px, 1.8vw, 24px); }
+.panel .panel-body { margin-top: 14px; color: var(--ink-2); font-size: 14px; line-height: 1.55; text-wrap: pretty; }
+.panel ul { list-style: none; padding: 0; margin: 18px 0 0; }
+.panel li {
+  padding: 11px 0;
+  border-top: 1px solid var(--hairline);
+  display: grid; grid-template-columns: 22px 1fr; gap: 12px; align-items: baseline;
+  font-size: 13px; color: var(--ink-2);
+}
+.panel li .num { font-family: var(--mono); font-size: 10px; color: var(--ink-3); letter-spacing: 0.06em; }
+.pullquote {
+  margin: 18px 0 0;
+  padding: 14px 18px;
+  border-left: 2px solid var(--brand);
+  background: var(--brand-wash);
+  border-radius: 0 10px 10px 0;
+  font-size: 14px; color: var(--ink); font-style: italic; line-height: 1.4;
+}
+.pullquote cite { display: block; margin-top: 8px; font-style: normal; font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-3); }
+
+/* ---------- Manifesto (problem page) ---------- */
+#s1 .slide-inner { display: flex; flex-direction: column; justify-content: center; flex: 1 1 auto; min-height: 100%; gap: 88px; }
+#s1 .slide-inner > .manifesto { flex: 0 0 auto; }
+.manifesto {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto;
+  gap: clamp(16px, 2.4vh, 28px) clamp(40px, 6vw, 96px);
+  align-items: start;
+  padding: 0;
+}
+@media (min-width: 960px) {
+  .manifesto {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "index"
+      "headline"
+      "subtitle"
+      "notes";
+    grid-template-rows: auto auto auto auto;
+    row-gap: clamp(16px, 2.4vh, 28px);
+    align-content: start;
+    align-items: start;
+  }
+  .manifesto .manifesto-stage { display: contents; }
+  .manifesto-stage .s-index { grid-area: index; align-self: end; }
+  .manifesto-stage h2 { grid-area: headline; align-self: start; }
+  .manifesto-sub { grid-area: subtitle; align-self: start; }
+  .talk-track { grid-area: notes; align-self: start; margin-top: 0; }
+}
+.manifesto-stage { display: flex; flex-direction: column; justify-content: center; }
+.manifesto-stage .s-index { margin-bottom: 0; }
+.manifesto-stage h2 {
+  font-size: clamp(28px, min(3.6vw, 5.6vh), 56px);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  font-weight: 500;
+  margin: 0;
+  text-wrap: balance;
+  max-width: 18ch;
+}
+.manifesto-sub {
+  margin: 0;
+  font-size: clamp(14px, min(1.2vw, 1.8vh), 17px);
+  line-height: 1.5;
+  color: var(--ink-2);
+  max-width: 64ch;
+  text-wrap: pretty;
+}
+.manifesto-footer {
+  margin-top: clamp(32px, 5vh, 56px);
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 12px 18px;
+  padding-top: 20px;
+  border-top: 1px solid var(--hairline);
+  font-size: 11px; color: var(--ink-3);
+  letter-spacing: 0.06em;
+}
+.manifesto-footer .sep {
+  width: 3px; height: 3px; border-radius: 50%;
+  background: var(--ink-4); display: inline-block;
+}
+
+/* Talk track (presenter notes, marginalia aligned with subtitle row) */
+.talk-track {
+  position: relative;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-3);
+  max-width: 100%;
+}
+.talk-track ol {
+  list-style: none; counter-reset: tt;
+  padding: 0; margin: 0;
+  display: flex; flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid var(--hairline);
+  padding-top: 80px;
+  max-width: 52ch;
+}
+.talk-track ol li {
+  counter-increment: tt;
+  position: relative;
+  text-wrap: pretty;
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
+  transition: color 240ms var(--e-out);
+  padding-left: 36px;
+}
+.talk-track ol li::before {
+  content: counter(tt, decimal-leading-zero);
+  position: absolute;
+  left: 0; top: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-4);
+  letter-spacing: 0.08em;
+  padding-top: 2px;
+}
+.talk-track ol li:hover { color: var(--ink-2); }
+@media (max-width: 959px) {
+  .talk-track { display: none; }
+}
+
+/* ---------- Research ---------- */
+/* ---------- Research (JTBD stack, simplified) ---------- */
+.jtbd-stack {
+  display: flex; flex-direction: column;
+  gap: clamp(16px, 2.4vh, 28px);
+}
+.jtbd {
+  display: flex; flex-direction: column;
+  gap: clamp(10px, 1.4vh, 14px);
+  padding: clamp(18px, 2.4vh, 26px) 0;
+  border-top: 1px solid var(--hairline);
+}
+.jtbd:last-child { border-bottom: 1px solid var(--hairline); }
+.jtbd-head {
+  display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+}
+.jtbd-tag {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+.jtbd--primary .jtbd-tag { color: var(--brand-ink); }
+.jtbd-context {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink-4);
+}
+.jtbd-statement {
+  margin: 0;
+  font-size: clamp(16px, min(1.3vw, 2vh), 20px);
+  line-height: 1.5;
+  color: var(--ink);
+  text-wrap: pretty;
+  max-width: 90ch;
+  font-weight: 400;
+}
+.jtbd-statement strong {
+  font-weight: 400;
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 0.78em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-right: 2px;
+}
+
+/* ---------- Decisions (horizontal carousel) ---------- */
+.dec-track-wrap {
+  position: relative;
+}
+.dec-track {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 100%;
+  transition: transform 500ms var(--e-inout);
+  will-change: transform;
+}
+.decision {
+  padding: 10px 2px;
+}
+.decision-card {
+  position: relative;
+  background: var(--bg-elev);
+  border: 1px solid var(--hairline);
+  border-radius: 22px;
+  padding: clamp(18px, 2.6vh, 32px);
+  overflow: hidden;
+  display: grid;
+  gap: clamp(12px, 1.8vh, 20px);
+}
+.decision-card::before {
+  content: ""; position: absolute; inset: 0;
+  background: radial-gradient(500px 200px at 100% 0%, rgba(0,82,204,0.12), transparent 70%);
+  pointer-events: none;
+}
+.decision-card .num { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; color: var(--brand-ink); }
+.decision-card h3 {
+  font-size: clamp(22px, 2.6vw, 34px); line-height: 1.15;
+  letter-spacing: -0.02em; font-weight: 600; text-wrap: balance;
+}
+.trinity { display: grid; gap: 14px; margin-top: 4px; }
+.trinity .row { display: grid; grid-template-columns: 84px 1fr; gap: 14px; align-items: baseline; }
+.trinity .lbl {
+  font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--ink-3); padding-top: 3px;
+}
+.trinity .val { font-size: clamp(14px, 1.2vw, 16px); color: var(--ink); line-height: 1.55; text-wrap: pretty; }
+.trinity .row.why .val { color: var(--ink-2); }
+
+.dec-nav {
+  display: flex; align-items: center; justify-content: center;
+  margin-top: 20px;
+  gap: 16px;
+  position: relative;
+}
+.dec-dots { display: inline-flex; gap: 8px; }
+.dec-dots button {
+  width: 28px; height: 4px; border-radius: 2px; border: 0;
+  background: rgba(255,255,255,0.12);
+  padding: 0;
+  transition: background 240ms var(--e-out);
+}
+.dec-dots button.on { background: var(--brand); }
+.dec-arrows { display: inline-flex; gap: 8px; position: absolute; right: 0; }
+.dec-arr {
+  width: 38px; height: 38px; border-radius: 99px;
+  background: transparent; border: 1px solid var(--hairline-2);
+  color: var(--ink-2);
+  display: grid; place-items: center;
+  transition: color 240ms var(--e-out), border-color 240ms var(--e-out), transform 240ms var(--e-out);
+}
+.dec-arr:hover { color: var(--ink); border-color: var(--ink-2); transform: scale(1.04); }
+.dec-arr[disabled] { opacity: 0.4; pointer-events: none; }
+.dec-counter { font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: 0.1em; }
+
+/* ---------- Evolve (wireframes → UI) ---------- */
+.evolve-grid {
+  display: grid; grid-template-columns: 1fr; gap: 20px; align-items: center;
+}
+@media (min-width: 900px) {
+  .evolve-grid { grid-template-columns: 1fr auto 1fr; gap: 28px; }
+}
+.stage-box {
+  padding: 48px 24px 24px; border-radius: 22px;
+  border: 1px solid var(--hairline); background: var(--bg-elev);
+  display: flex; flex-direction: column; align-items: center;
+  gap: 14px; position: relative;
+}
+.stage-box .stage-lbl {
+  position: absolute; top: 14px; left: 20px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3);
+}
+.stage-box.hifi .stage-lbl { color: var(--brand-ink); }
+.wire-phone {
+  width: clamp(130px, min(15vw, 22vh), 200px);
+  aspect-ratio: 393/852; position: relative; border-radius: 32px;
+  padding: 7px; background: #1A1E2C;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(255,255,255,0.06);
+}
+.wire-phone .screen {
+  background: #FFFFFF; border-radius: 30px; overflow: hidden;
+  width: 100%; height: 100%;
+  padding: 28px 16px 16px; color: #808080;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.wire-phone .line { background: #B3B3B3; height: 9px; border-radius: 3px; }
+.wire-phone .line.sm { height: 7px; width: 60%; }
+.wire-phone .line.lg { height: 12px; width: 70%; background: #808080; }
+.wire-phone .box { background: #F6F6F6; border: 1px solid #E0E0E0; border-radius: 10px; padding: 10px; }
+.wire-phone .circle { width: 24px; height: 24px; border-radius: 50%; background: #F6F6F6; border: 1px solid #E0E0E0; flex-shrink: 0; }
+.wire-phone .btn-lo { height: 28px; border-radius: 10px; background: #808080; margin-top: auto; }
+
+.stage-box.hifi .phone { width: clamp(130px, min(15vw, 22vh), 200px); }
+.stage-box { padding: clamp(32px, 4.5vh, 48px) clamp(14px, 2vh, 24px) clamp(14px, 2vh, 22px); }
+
+.arrow-connect {
+  justify-self: center; width: 100%; max-width: 140px;
+  display: flex; align-items: center; gap: 10px;
+}
+.arrow-connect .line { flex: 1; height: 1px; background: linear-gradient(90deg, var(--hairline), var(--brand), var(--hairline)); }
+.arrow-connect .head { color: var(--brand-ink); font-size: 16px; }
+.arrow-connect .lab {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--ink-3); white-space: nowrap;
+}
+@media (max-width: 899px) {
+  .arrow-connect { transform: rotate(90deg); max-width: 80px; margin: 6px auto; }
+}
+.evolve-notes { margin-top: clamp(14px, 2.5vh, 24px); display: grid; gap: 14px; grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 719px) { .evolve-notes { grid-template-columns: 1fr; } }
+.evolve-notes .n { font-size: 13px; color: var(--ink-2); padding: 12px 0 0; border-top: 1px solid var(--hairline); }
+.evolve-notes .n b { color: var(--ink); font-weight: 600; display: block; margin-bottom: 4px; font-size: 13px; }
+
+/* ---------- Testing ---------- */
+.test-grid { display: grid; grid-template-columns: 1fr; gap: 32px; align-items: center; }
+@media (min-width: 900px) { .test-grid { grid-template-columns: 1.1fr 0.9fr; gap: 48px; } }
+
+.test-list { display: grid; grid-template-columns: 1fr; gap: 8px; }
+@media (min-width: 600px) { .test-list { grid-template-columns: 1fr 1fr; } }
+.test-item {
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  padding: clamp(10px, 1.4vh, 14px) clamp(12px, 1.8vh, 16px);
+  background: var(--bg-elev);
+  transition: border-color 240ms var(--e-out), background 240ms var(--e-out);
+}
+.test-item:hover { border-color: var(--hairline-2); background: var(--bg-elev-2); }
+.test-item .ti-h { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; font-size: 13px; font-weight: 600; color: var(--ink); }
+.test-item .ti-n { font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em; color: var(--ink-3); }
+.test-item .ti-b { margin-top: 5px; font-size: 12px; color: var(--ink-2); line-height: 1.45; }
+.test-item { cursor: pointer; transition: border-color 200ms var(--e-out), background 200ms var(--e-out); }
+.test-item:hover { border-color: var(--hairline-2); background: var(--bg-elev-2); }
+.test-item.is-active { border-color: var(--brand); background: var(--brand-wash); }
+.test-item.is-active .ti-n { color: var(--brand); }
+
+.ba-step { padding: 8px 10px; margin-top: 4px; border-radius: 8px; background: #E2E8F0; font-size: 11px; font-weight: 500; color: #475569; }
+.ba-step.active { background: #0052CC; color: #fff; }
+.ba-field { padding: 8px 10px; margin-top: 4px; border-radius: 8px; background: #F1F5F9; font-size: 11px; font-weight: 500; color: #475569; border: 1px solid #E2E8F0; }
+.ba-field.warn { border-color: #F59E0B; background: #FFFBEB; color: #B45309; }
+.ba-section { padding: 8px 10px; margin-top: 4px; border-radius: 8px; background: #F1F5F9; font-size: 11px; font-weight: 500; color: #475569; display: flex; justify-content: space-between; align-items: center; }
+.ba-edit { color: #0052CC; font-size: 13px; }
+.ba-btn-old { background: #E2E8F0; color: #475569; text-align: center; padding: 8px; border-radius: 8px; font-size: 11px; font-weight: 600; margin-top: 4px; }
+.ba-hint { font-size: 9px; color: #991B1B; text-align: center; padding: 6px; font-weight: 500; }
+.ba-hint-ok { font-size: 9px; color: #15803D; text-align: center; padding: 6px; font-weight: 500; }
+.ba-searchbar { background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; padding: 8px 10px; font-size: 12px; color: #0F172A; margin-top: 8px; }
+.ba-empty { text-align: center; font-size: 12px; font-weight: 600; color: #475569; margin-top: 20px; }
+.ba-empty-hint { text-align: center; font-size: 10px; color: #5F738C; margin-top: 4px; }
+.ba-voice-overlay { background: rgba(0,82,204,0.1); border: 1px solid rgba(0,82,204,0.3); border-radius: 10px; padding: 12px; text-align: center; font-size: 12px; font-weight: 600; color: #0052CC; margin-top: 8px; }
+
+.ba-slider {
+  position: relative; width: 100%; aspect-ratio: 862/1768;
+  max-width: min(380px, 54vh); margin: 0 auto; border-radius: 22px;
+  overflow: hidden;
+  border: none; background: transparent;
+  user-select: none; touch-action: none; cursor: ew-resize;
+}
+.ba-frame {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  background: transparent; color: #0F172A;
+  padding: 0; font-size: 12px;
+}
+.ba-frame.after { clip-path: inset(0 0 0 var(--cut, 50%)); }
+.ba-frame .lbl {
+  position: absolute; top: 10px;
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase;
+  padding: 4px 8px; border-radius: 99px; color: #fff; z-index: 6;
+}
+.ba-frame.before .lbl { left: 10px; background: rgba(15,23,42,0.75); }
+.ba-frame.after .lbl { right: 10px; background: rgba(0,82,204,0.85); }
+.ba-handle { position: absolute; top: 3%; bottom: 3%; left: var(--cut, 50%); width: 2px; background: rgba(0,82,204,0.9); z-index: 7; pointer-events: none; transform: translateX(-50%); border-radius: 1px; }
+.ba-handle::after { content: "⇆"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 30px; height: 30px; border-radius: 99px; background: #fff; color: #0052CC; display: grid; place-items: center; font-size: 12px; font-weight: 600; box-shadow: 0 4px 14px rgba(0,0,0,0.2); }
+.ba-frame .ba-nav { font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+.ba-frame .ba-alert-old { margin-top: auto; background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B; padding: 8px 10px; border-radius: 8px; font-size: 10px; }
+.ba-frame .ba-alert-new { background: #FEF2F2; border: 1px solid #DC2626; color: #991B1B; padding: 10px; border-radius: 10px; font-size: 11px; display: flex; gap: 8px; align-items: flex-start; box-shadow: 0 4px 12px rgba(220,38,38,0.15); font-weight: 500; }
+.ba-frame .ba-alert-new .i { width: 16px; height: 16px; border-radius: 50%; background: #DC2626; color: #fff; display: grid; place-items: center; flex: 0 0 16px; font-weight: 700; font-size: 10px; }
+.ba-frame .ba-chat { background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; padding: 10px; font-size: 10px; color: #5F738C; margin-top: 8px; }
+.ba-frame .ba-chat b { color: #0F172A; font-weight: 600; display: block; }
+
+/* ---------- Final gallery (2x3 grid) ---------- */
+.gallery {
+  display: grid; gap: clamp(14px, 2vh, 24px);
+  grid-template-columns: 1fr;
+}
+@media (min-width: 720px) { .gallery { grid-template-columns: repeat(3, 1fr); gap: clamp(14px, 2vh, 24px); } }
+.g-item { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.g-item .phone { width: clamp(100px, min(12vw, 18vh), 170px); }
+.g-item .g-cap { text-align: center; }
+.g-item .g-cap .n { font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+.g-item .g-cap .t { font-size: 12px; color: var(--ink); margin-top: 4px; }
+
+.final-cta {
+  margin-top: clamp(16px, 2vh, 24px);
+  border: 1px solid var(--hairline);
+  border-radius: 20px;
+  padding: clamp(18px, 2.4vh, 24px);
+  background: linear-gradient(180deg, var(--brand-wash), rgba(0,82,204,0.02));
+  display: grid; gap: 16px; grid-template-columns: 1fr;
+  align-items: center;
+}
+@media (min-width: 820px) { .final-cta { grid-template-columns: 1fr auto; } }
+.final-cta h3 { font-size: clamp(18px, 1.8vw, 22px); line-height: 1.25; font-weight: 600; letter-spacing: -0.015em; max-width: 28ch; }
+.final-cta p { margin-top: 6px; color: var(--ink-2); font-size: 13px; }
+
+/* ---------- Reflections ---------- */
+.reflect-grid { display: grid; grid-template-columns: 1fr; gap: 0; }
+@media (min-width: 820px) { .reflect-grid { grid-template-columns: 1fr 1fr; gap: 24px; } }
+.reflect {
+  padding: clamp(12px, 2vh, 20px) 0; border-top: 1px solid var(--hairline);
+  display: flex; gap: 6px; align-items: baseline;
+}
+.reflect h4 { font-size: clamp(14px, min(1.3vw, 2vh), 18px); line-height: 1.25; letter-spacing: -0.01em; font-weight: 600; }
+.reflect .r-num { font-family: var(--mono); font-size: 11px; color: var(--brand-ink); letter-spacing: 0.14em; }
+.reflect .r-num::before { content: ""; }
+.reflect p { margin-top: 10px; color: var(--ink-2); font-size: 13px; line-height: 1.55; text-wrap: pretty; }
+
+.next-block {
+  margin-top: clamp(40px, 5vh, 56px);
+  border: 1px solid var(--hairline);
+  border-radius: 18px;
+  padding: clamp(16px, 2vh, 22px);
+  background: var(--bg-elev);
+}
+.next-block .kicker { font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--brand-ink); }
+.next-block h3 { margin-top: 8px; font-size: 18px; font-weight: 600; }
+.next-block ul { list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
+@media (max-width: 719px) { .next-block ul { grid-template-columns: 1fr; } }
+.next-block li {
+  padding: 10px 12px; border: 1px solid var(--hairline); border-radius: 10px;
+  font-size: 12.5px; color: var(--ink-2);
+  display: flex; gap: 10px; align-items: flex-start;
+}
+.next-block li::before { content: "→"; color: var(--brand-ink); flex-shrink: 0; }
+
+/* ---------- Tools ---------- */
+.tools-grid {
+  display: flex; flex-wrap: wrap; gap: 20px; margin-top: 36px;
+  justify-content: center;
+}
+.tool-card {
+  flex: 1 1 180px; max-width: 240px;
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+  padding: 32px 20px;
+  border: 1px solid var(--hairline); border-radius: 18px;
+  background: var(--bg-elev); text-align: center;
+}
+.tool-card .tool-icon { width: 44px; height: 44px; border-radius: 10px; }
+.tool-card svg { width: 44px; height: 44px; }
+.tool-card .tool-name { font-size: 16px; font-weight: 600; color: var(--ink); }
+.tool-card .tool-desc { font-size: 13px; color: var(--ink-3); line-height: 1.45; }
+@media (max-width: 767px) {
+  .tools-grid { gap: 10px; }
+  .tool-card { max-width: none; flex: 1 1 calc(50% - 10px); padding: 16px 12px; }
+}
+
+/* ---------- Footer slide ---------- */
+.end-slide {
+  text-align: center;
+}
+.end-inner { max-width: 680px; margin: 0 auto; }
+.end-inner h2 { text-wrap: balance; }
+.end-inner p { margin-top: 16px; font-size: 16px; color: var(--ink-2); }
+.end-links { margin-top: 34px; display: flex; flex-wrap: wrap; gap: 28px; justify-content: center; }
+.end-links a { font-size: 14px; color: var(--ink-2); }
+.end-meta { margin-top: 40px; font-size: 12px; color: var(--ink-4); font-family: var(--mono); letter-spacing: 0.08em; }
+
+/* ---------- Mobile fallback (<768px): stack normally ---------- */
+@media (max-width: 767px) {
+  body { overflow: auto; }
+  .stage { position: static; }
+  .slide {
+    position: relative; inset: auto;
+    opacity: 1 !important; pointer-events: auto !important;
+    min-height: 100vh; transition: none;
+    z-index: auto !important;
+    display: block;
+  }
+  .slide-inner { max-height: none; overflow: visible; padding: 72px 22px; }
+  .slide .reveal { opacity: 1; transform: none; }
+  .progress, .arrows, .scroll-hint { display: none; }
+  .dots { top: auto; bottom: 16px; right: 50%; transform: translate(50%, 0); flex-direction: row; background: rgba(15,20,36,0.75); backdrop-filter: blur(8px); border: 1px solid var(--hairline); border-radius: 99px; padding: 10px 14px; }
+  .dots button .tip { display: none; }
+  .counter { font-size: 11px; }
+  .topleft { top: 14px; left: 14px; }
+  .topright { top: 14px; right: 14px; }
+  .dec-track { transform: none !important; grid-auto-flow: row; grid-auto-columns: unset; gap: 14px; }
+  .phone { width: min(260px, 70vw); }
+  .hero-aside { margin-top: 24px; }
+  .two-col { gap: 28px; }
+}
+
+/* Ultra-short viewports: surgical trims */
+@media (min-width: 768px) and (max-height: 600px) {
+  .insight-list .insight:nth-child(3) { display: none; }
+  .hero-meta { display: none; }
+  .g-item .g-cap { display: none; }
+  .ba-slider { max-width: min(260px, 40vh); }
+}
+
+/* ---------- Short-viewport overrides (laptop heights) ---------- */
+@media (min-width: 768px) and (max-height: 720px) {
+  .slide-inner { padding: 48px var(--gutter) 40px; }
+  .s-head { margin-bottom: 18px; }
+  .s-head h2 { margin-top: 8px; }
+  .s-head p { margin-top: 8px; font-size: 13px; }
+  .phone {
+    width: auto !important;
+    height: clamp(200px, 46vh, 320px) !important;
+    aspect-ratio: 393/852;
+  }
+  .wire-phone {
+    width: auto !important;
+    height: clamp(180px, 42vh, 280px) !important;
+    aspect-ratio: 393/852;
+  }
+  .stage-box.hifi .phone { height: clamp(180px, 42vh, 280px) !important; }
+  .stage-box { padding: 28px 14px 14px; }
+  .hero-copy h1 { font-size: clamp(26px, 6.2vh, 48px); line-height: 1.05; }
+  .insight { padding: 10px 14px; }
+  .insight h4 { font-size: 12.5px; line-height: 1.25; margin-top: 4px; }
+  .insight .quote { font-size: 10.5px; margin-top: 4px; line-height: 1.4; }
+  .insight .kicker { font-size: 9px; }
+  .gallery { gap: 8px 12px; }
+  .g-item { gap: 6px; }
+  .g-item .g-cap .n { font-size: 8px; }
+  .g-item .g-cap .t { font-size: 10px; margin-top: 2px; }
+  .persona-portrait { min-height: 40px; padding: 10px 14px; }
+  .persona-body { padding: 12px 14px; }
+  .persona-body h4 { font-size: 15px; margin: 2px 0 0; }
+  .persona-body .age { font-size: 10px; }
+  .persona-body p { font-size: 11px; margin-top: 4px; line-height: 1.35; }
+  .persona-stats { margin-top: 6px; }
+  .stat { padding-top: 6px; }
+  .stat .v { font-size: 10.5px; margin-top: 2px; }
+  .persona-body .role { font-size: 9px; }
+  .final-cta { display: none; }
+  .hero-meta { margin-bottom: 12px; font-size: 10px; }
+  .hero-tag { margin-top: 10px; font-size: 13px; }
+  .cta-row { margin-top: 14px; }
+  .g-item .phone {
+    width: 200px !important;
+    height: auto !important;
+    aspect-ratio: 393/852;
+  }
+  .g-item .phone > .phone-screen {
+    overflow: hidden;
+    /* Scale inner UI to match the shrunk frame (target was 280px; now 200px = 0.71) */
+    font-size: 10px;
+  }
+  .g-item .app-home .greet,
+  .g-item .app-result .med-title { font-size: 16px; }
+  .g-item .app-home .subtitle,
+  .g-item .app-result .med-sub { font-size: 10px; }
+  .g-item .searchbar { font-size: 11px; padding: 8px 10px; }
+  .g-item .med-card .t1 { font-size: 11px; }
+  .g-item .med-card .t2 { font-size: 10px; }
+  .g-item .med-card .pill-icon { width: 26px; height: 26px; font-size: 12px; }
+  .g-item .section-label { font-size: 9px; }
+  .g-item .ai-footer { font-size: 8px; padding: 6px 10px; }
+  .g-item .app-result .navbar { font-size: 13px; }
+  .g-item .fab { width: 40px; height: 40px; right: 14px; bottom: 18px; }
+  .g-item .fab svg { width: 16px; height: 16px; }
+  .g-item .info-block p { font-size: 11px; }
+  .g-item .chip { font-size: 10px; padding: 5px 8px; }
+  .g-item .bubble { font-size: 11px; padding: 7px 9px; }
+  .g-item .danger-banner { font-size: 10px; padding: 7px 9px; }
+  .g-item .inputbar { font-size: 10px; padding: 7px 9px; }
+  .g-item .app-scan .hint { font-size: 10px; }
+  .g-item .app-scan .shutter { width: 42px; height: 42px; }
+  .gallery {
+    display: flex !important;
+    grid-template-columns: none !important;
+    gap: 14px !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 8px;
+    scrollbar-width: thin;
+  }
+  .gallery::-webkit-scrollbar { height: 4px; }
+  .gallery::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+  .g-item { flex: 0 0 auto; scroll-snap-align: start; }
+  .g-item .g-cap .t { font-size: 11px; }
+  .gallery { gap: 12px; }
+  .panel { padding: 16px; }
+  .panel h3 { font-size: 16px; margin-top: 8px; }
+  .panel .panel-body { margin-top: 8px; font-size: 13px; }
+  .pullquote { margin-top: 10px; padding: 10px 12px; font-size: 12px; }
+  .insight { padding: 12px 14px; }
+  .insight h4 { font-size: 13px; }
+  .insight .quote { font-size: 11px; margin-top: 6px; }
+  .persona-portrait { min-height: 60px; padding: 14px 16px; }
+  .persona-body { padding: 14px 16px; }
+  .persona-body h4 { font-size: 17px; margin: 4px 0 2px; }
+  .persona-body p { font-size: 12px; margin-top: 6px; line-height: 1.4; }
+  .persona-stats { margin-top: 10px; }
+  .decision-card { padding: 16px; gap: 10px; }
+  .trinity { gap: 8px; }
+  .trinity .row { grid-template-columns: 72px 1fr; gap: 10px; }
+  .trinity .val { font-size: 13px; line-height: 1.45; }
+  .dec-nav { margin-top: 12px; }
+  .evolve-notes { margin-top: 14px; gap: 10px; }
+  .evolve-notes .n { font-size: 12px; padding-top: 8px; }
+  .test-item { padding: 8px 12px; }
+  .test-item .ti-h { font-size: 12px; }
+  .test-item .ti-b { font-size: 11px; margin-top: 3px; }
+  .ba-slider { max-width: min(300px, 46vh); }
+  .reflect { padding: 12px 0; grid-template-columns: 60px 1fr; gap: 12px; }
+  .reflect h4 { font-size: 14px; }
+  .reflect p { font-size: 12px; margin-top: 6px; line-height: 1.45; }
+  .next-block { margin-top: 14px; padding: 14px; }
+  .next-block ul { margin-top: 10px; gap: 6px; }
+  .next-block li { padding: 8px 10px; font-size: 12px; }
+}
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; }
+  .slide { transition: opacity 0.001ms linear; }
+  .slide.is-active .reveal { opacity: 1; transform: none; }
+  .scroll-hint .arw { animation: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- Progress bar -->
+<div class="progress"><div class="bar" id="progressBar"></div></div>
+
+<!-- Chrome -->
+<div class="chrome topleft">
+  <a href="https://subvisual.com/" target="_blank" rel="noopener" class="brandmark" aria-label="Subvisual">
+    <img src="https://subvisual.com/_astro/subvisual-logo.DN5q_Zhp.svg" alt="Subvisual" class="brand-logo" />
+  </a>
+</div>
+
+<!-- Dot nav -->
+<nav class="dots" id="dots" aria-label="Section navigation"></nav>
+
+<!-- Prev/next arrows removed -->
+
+<!-- Scroll hint -->
+<div class="scroll-hint" id="scrollHint">
+  Scroll para continuar
+  <span class="arw" aria-hidden="true">↓</span>
+</div>
+
+<!-- ============ STAGE ============ -->
+<main class="stage" id="stage">
+
+<!-- ====== 01 · HERO ====== -->
+<section class="slide" id="s0" data-label="Hero" aria-labelledby="h-hero">
+  <div class="slide-inner">
+    <div class="two-col">
+      <div class="hero-copy">
+        <div class="eyebrow reveal" style="--d:80ms"><span class="dot"></span>Case study</div>
+        <h1 id="h-hero" class="reveal" style="--d:140ms">
+          <span class="ln">Compreenda a sua</span> <span class="ln">medicação com</span> <span class="bw">confiança.</span>
+        </h1>
+        <p class="hero-tag reveal" style="--d:220ms">
+          A MedaBot identifica medicamentos por fotografia ou nome, com limites claros e encaminhamento para um profissional de saúde quando necessário.
+        </p>
+        <div class="cta-row reveal" style="--d:300ms">
+          <a class="btn btn-primary" href="https://broque-subvisual.github.io/medabot-prototype/" target="_blank" rel="noopener">
+            Testar o protótipo
+            <svg class="arrw" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M9 7h8v8"/></svg>
+          </a>
+          <button class="btn btn-ghost" data-go-next>
+            Ver o processo
+            <svg class="arrw" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transform:rotate(90deg)"><path d="M7 17L17 7M9 7h8v8"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="hero-aside reveal" style="--d:180ms" aria-hidden="true">
+        <div class="pill-stage">
+          <div class="pill-rings" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </div>
+          <div class="pill-wrap">
+            <svg class="pill-svg" viewBox="-200 -200 400 400" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="pillLight" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#EAF1FF" stop-opacity="1"/>
+                  <stop offset="100%" stop-color="#B7CBF0" stop-opacity="1"/>
+                </linearGradient>
+                <linearGradient id="pillDark" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#2E74E0" stop-opacity="1"/>
+                  <stop offset="100%" stop-color="#0B3F9E" stop-opacity="1"/>
+                </linearGradient>
+                <filter id="pillShadow" x="-50%" y="-50%" width="200%" height="200%">
+                  <feGaussianBlur in="SourceAlpha" stdDeviation="10"/>
+                  <feOffset dx="0" dy="12" result="off"/>
+                  <feComponentTransfer><feFuncA type="linear" slope="0.35"/></feComponentTransfer>
+                  <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+                <!-- One capsule: horizontal, 320 long, 130 tall, fully rounded ends -->
+                <clipPath id="capsuleClip">
+                  <rect x="-160" y="-65" width="320" height="130" rx="65" ry="65"/>
+                </clipPath>
+              </defs>
+
+              <!-- Single capsule: left half light, right half dark, split with a small gap -->
+              <g class="pill-capsule pill-a" filter="url(#pillShadow)">
+                <!-- Left half (clipped to left rounded rect) -->
+                <g class="pill-half-l">
+                  <path d="
+                    M -95,-65
+                    L -10,-65
+                    L -10,65
+                    L -95,65
+                    a 65,65 0 0 1 0,-130 Z"
+                    fill="url(#pillLight)"/>
+                  <!-- highlight on light half -->
+                  <path d="M -140,-40 a 45,45 0 0 1 40,-22" fill="none" stroke="rgba(255,255,255,0.75)" stroke-width="3" stroke-linecap="round"/>
+                </g>
+                <!-- Right half -->
+                <g class="pill-half-r">
+                  <path d="
+                    M 10,-65
+                    L 95,-65
+                    a 65,65 0 0 1 0,130
+                    L 10,65
+                    Z"
+                    fill="url(#pillDark)"/>
+                  <!-- highlight on dark half -->
+                  <path d="M 30,-45 L 110,-45" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="3" stroke-linecap="round"/>
+                </g>
+              </g>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== 02 · PROBLEM (manifesto) ====== -->
+<section class="slide" id="s1" data-label="The problem" aria-labelledby="h-problem">
+  <div class="slide-inner">
+    <div class="manifesto">
+      <div class="manifesto-stage">
+        <div class="s-index reveal">01 / The Problem</div>
+        <h2 id="h-problem" class="reveal" style="--d:80ms">Contexto antes de conteúdo.</h2>
+        <p class="manifesto-sub reveal" style="--d:160ms">A ansiedade vem da informação sem hierarquia, não da falta dela.</p>
+      </div>
+      <aside class="talk-track reveal" style="--d:240ms" aria-label="Notas do apresentador">
+        <ol>
+          <li>Existe demasiada informação.</li>
+          <li>Dados sem hierarquia, gera mais ansiedade.</li>
+          <li>Contextualizar e reconhecer limites.</li>
+        </ol>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ====== 03 · RESEARCH ====== -->
+<section class="slide" id="s2" data-label="Research" aria-labelledby="h-research">
+  <div class="slide-inner">
+    <header class="s-head">
+      <div class="s-index reveal">02 / Research</div>
+      <h2 id="h-research" class="reveal" style="--d:80ms">Oito entrevistas, três jobs.</h2>
+      <p class="reveal" style="--d:140ms">Padrões recorrentes consolidados em jobs to be done.</p>
+    </header>
+
+    <div class="jtbd-stack">
+      <article class="jtbd jtbd--primary reveal" style="--d:140ms">
+        <header class="jtbd-head">
+          <span class="jtbd-tag">Primary</span>
+          <span class="jtbd-context">Pesquisa espontânea</span>
+        </header>
+        <p class="jtbd-statement">
+          <strong>Quando</strong> procuro informação sobre um medicamento online, <strong>quero</strong> perceber rapidamente o que é relevante para mim e o risco real envolvido, <strong>para</strong> me sentir tranquila e confiante na decisão.
+        </p>
+      </article>
+
+      <article class="jtbd reveal" style="--d:220ms">
+        <header class="jtbd-head">
+          <span class="jtbd-tag">Contextual A</span>
+          <span class="jtbd-context">Prescrição complexa</span>
+        </header>
+        <p class="jtbd-statement">
+          <strong>Quando</strong> me prescrevem um medicamento novo ou mais complexo, <strong>quero</strong> confirmar que é seguro e adequado ao meu caso, <strong>para</strong> começar o tratamento sem medo de efeitos nocivos.
+        </p>
+      </article>
+
+      <article class="jtbd reveal" style="--d:300ms">
+        <header class="jtbd-head">
+          <span class="jtbd-tag">Contextual B</span>
+          <span class="jtbd-context">Pós-consulta</span>
+        </header>
+        <p class="jtbd-statement">
+          <strong>Quando</strong> saio de uma consulta com dúvidas por responder, <strong>quero</strong> esclarecê-las de forma simples e acessível, <strong>para</strong> me sentir informada sem precisar de outra consulta.
+        </p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ====== 04 · DECISIONS (internal carousel) ====== -->
+<section class="slide" id="s3" data-label="Design decisions" aria-labelledby="h-dec">
+  <div class="slide-inner" style="max-width: 1100px;">
+    <header class="s-head">
+      <div class="s-index reveal">03 / Key design decisions</div>
+      <h2 id="h-dec" class="reveal" style="--d:80ms; white-space:nowrap;">Cinco decisões que moldaram o produto.</h2>
+    </header>
+
+    <div class="dec-track-wrap reveal" style="--d:200ms">
+      <div class="dec-track" id="decTrack">
+
+        <div class="decision">
+          <div class="decision-card">
+            <div class="num">Decisão 01</div>
+            <h3>Transparência antes de cada resposta da IA.</h3>
+            <div class="trinity">
+              <div class="row"><div class="lbl">Problema</div><div class="val">A IA soa igualmente certa quer saiba ou não.</div></div>
+              <div class="row"><div class="lbl">Decisão</div><div class="val">Disclaimer fixo no início do chat.</div></div>
+              <div class="row why"><div class="lbl">Porquê</div><div class="val">Nomear limites constrói confiança.</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="decision">
+          <div class="decision-card">
+            <div class="num">Decisão 02</div>
+            <h3>Informação personalizada ao perfil.</h3>
+            <div class="trinity">
+              <div class="row"><div class="lbl">Problema</div><div class="val">As bulas listam muita informação, gerando ansiedade.</div></div>
+              <div class="row"><div class="lbl">Decisão</div><div class="val">Filtrar informação com base no perfil e condições do utilizador.</div></div>
+              <div class="row why"><div class="lbl">Porquê</div><div class="val">Informação relevante ao caso evita listas longas e complexas.</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="decision">
+          <div class="decision-card">
+            <div class="num">Decisão 03</div>
+            <h3>Chat primeiro, nunca um catálogo.</h3>
+            <div class="trinity">
+              <div class="row"><div class="lbl">Problema</div><div class="val">Utilizadores preferem perguntar, não navegar menus.</div></div>
+              <div class="row"><div class="lbl">Decisão</div><div class="val">Chips de orientação + texto livre sempre visível.</div></div>
+              <div class="row why"><div class="lbl">Porquê</div><div class="val">Segue o comportamento iterativo observado na investigação.</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="decision">
+          <div class="decision-card">
+            <div class="num">Decisão 04</div>
+            <h3>Encaminhar antes de falhar.</h3>
+            <div class="trinity">
+              <div class="row"><div class="lbl">Problema</div><div class="val">A IA não deve responder a tudo.</div></div>
+              <div class="row"><div class="lbl">Decisão</div><div class="val">Perguntas de risco mostram alerta e encaminham para um profissional de saúde.</div></div>
+              <div class="row why"><div class="lbl">Porquê</div><div class="val">Apoiar decisões, não substituí-las.</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="decision">
+          <div class="decision-card">
+            <div class="num">Decisão 05</div>
+            <h3>Perfil activo sempre identificado, nunca misturado.</h3>
+            <div class="trinity">
+              <div class="row"><div class="lbl">Problema</div><div class="val">Gerir medicação de várias pessoas sem misturar contextos.</div></div>
+              <div class="row"><div class="lbl">Decisão</div><div class="val">Perfis separados com indicação clara de quem está activo.</div></div>
+              <div class="row why"><div class="lbl">Porquê</div><div class="val">Misturar perfis em saúde pode ser perigoso.</div></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="dec-nav">
+                <div class="dec-dots" id="decDots"></div>
+        <div class="dec-arrows">
+          <button class="dec-arr" id="decPrev" aria-label="Decisão anterior">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <button class="dec-arr" id="decNext" aria-label="Próxima decisão">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== 05 · LO-FI ====== -->
+<section class="slide" id="s4" data-label="Lo-fi wireframes" aria-labelledby="h-lofi">
+  <div class="slide-inner">
+    <header class="s-head">
+      <div class="s-index reveal">04 / Lo-fi wireframes</div>
+      <h2 id="h-lofi" class="reveal" style="--d:80ms; white-space:nowrap;">Antes de um único pixel a cores.</h2>
+      <p class="reveal" style="--d:140ms">Estrutura, hierarquia e fluxo validados em cinzento antes de qualquer decisão visual.</p>
+    </header>
+    <div class="reveal" style="--d:200ms; display:flex; align-items:center; justify-content:center; gap:2%; margin-top:32px;">
+      <img src="lofi_1.png" alt="Lo-fi wireframe 1" style="width:30%; object-fit:contain;">
+      <img src="lofi_2.png" alt="Lo-fi wireframe 2" style="width:30%; object-fit:contain;">
+      <img src="lofi_3.png?v=2" alt="Lo-fi wireframe 3" style="width:30%; object-fit:contain;">
+    </div>
+  </div>
+</section>
+
+<!-- ====== 05 · TESTING ====== -->
+<section class="slide" id="s5" data-label="Usability testing" aria-labelledby="h-test">
+  <div class="slide-inner">
+    <header class="s-head">
+      <div class="s-index reveal">05 / Usability testing</div>
+      <h2 id="h-test" class="reveal" style="--d:80ms">Sete participantes. Quatro problemas.</h2>
+      <p class="reveal" style="--d:140ms">O que parecia claro no protótipo confundiu quem o usou.</p>
+    </header>
+
+    <div class="test-grid">
+      <div class="test-list reveal" style="--d:200ms">
+        <div class="test-item is-active" data-issue="0"><div class="ti-h"><span>Visibilidade dos alertas</span><span class="ti-n">01</span></div><div class="ti-b">Banner pequeno abaixo do fold → topo do ecrã + modal de perigo para casos críticos.</div></div>
+        <div class="test-item" data-issue="1"><div class="ti-h"><span>Perfil de criança</span><span class="ti-n">02</span></div><div class="ti-b">Perguntas sobre álcool/tabaco ocultas para menores de 16 anos.</div></div>
+        <div class="test-item" data-issue="2"><div class="ti-h"><span>Entrada de voz</span><span class="ti-n">03</span></div><div class="ti-b">Ecrã inteiro → overlay inline que mantém a conversa visível.</div></div>
+        <div class="test-item" data-issue="3"><div class="ti-h"><span>Estado vazio de pesquisa</span><span class="ti-n">04</span></div><div class="ti-b">Estado silencioso → "Nenhum resultado encontrado" + dica de recuperação.</div></div>
+      </div>
+
+      <div class="reveal" style="--d:300ms">
+       <div style="max-width:min(300px, 46vh); margin:0 auto;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-family:var(--mono); font-size:10px; letter-spacing:0.14em; text-transform:uppercase; color:var(--ink-3);">
+          <span>Antes</span><span>Depois</span>
+        </div>
+       </div>
+        <div class="ba-slider" id="baSlider" style="--cut: 50%">
+          <div class="ba-frame before" id="baBefore"></div>
+          <div class="ba-frame after" id="baAfter"></div>
+          <div class="ba-handle" aria-hidden="true"></div>
+          <input type="range" min="0" max="100" value="50" id="baRange" aria-label="Before/after slider" style="position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:ew-resize;"/>
+        </div>
+        <p id="baCaption" style="text-align:center; margin-top:12px; font-family:var(--mono); font-size:10px; letter-spacing:0.14em; text-transform:uppercase; color:var(--ink-3);">Arrastar para comparar</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== 06 · TOOLS ====== -->
+<section class="slide" id="s6" data-label="Tools" aria-labelledby="h-tools">
+  <div class="slide-inner">
+    <header class="s-head">
+      <div class="s-index reveal">06 / Tools</div>
+      <h2 id="h-tools" class="reveal" style="--d:80ms">Ferramentas utilizadas.</h2>
+      <p class="reveal" style="--d:140ms">Stack de design, prototipagem e investigação.</p>
+    </header>
+    <div class="tools-grid reveal" style="--d:200ms">
+      <div class="tool-card">
+        <svg width="32" height="32" viewBox="0 0 38 57" fill="none"><path d="M19 28.5a9.5 9.5 0 1 1 19 0 9.5 9.5 0 0 1-19 0z" fill="#1ABCFE"/><path d="M0 47.5A9.5 9.5 0 0 1 9.5 38H19v9.5a9.5 9.5 0 1 1-19 0z" fill="#0ACF83"/><path d="M19 0v19h9.5a9.5 9.5 0 1 0 0-19H19z" fill="#FF7262"/><path d="M0 9.5A9.5 9.5 0 0 0 9.5 19H19V0H9.5A9.5 9.5 0 0 0 0 9.5z" fill="#F24E1E"/><path d="M0 28.5A9.5 9.5 0 0 0 9.5 38H19V19H9.5A9.5 9.5 0 0 0 0 28.5z" fill="#A259FF"/></svg>
+        <div class="tool-name">Figma</div>
+        <div class="tool-desc">Design system, wireframes e protótipo interactivo.</div>
+      </div>
+      <div class="tool-card">
+        <img src="cursor-icon.png" width="32" height="32" alt="Cursor" class="tool-icon">
+        <div class="tool-name">Cursor</div>
+        <div class="tool-desc">IDE com IA integrada para o protótipo React.</div>
+      </div>
+      <div class="tool-card">
+        <img src="claude-ai-icon.webp" width="32" height="32" alt="Claude" class="tool-icon">
+        <div class="tool-name">Claude</div>
+        <div class="tool-desc">Copy da interface. Protótipo React. Decisões de design.</div>
+      </div>
+      <div class="tool-card">
+        <img src="perplexity-icon.png" width="32" height="32" alt="Perplexity" class="tool-icon">
+        <div class="tool-name">Perplexity</div>
+        <div class="tool-desc">Pesquisa de regulação e compliance.</div>
+      </div>
+      <div class="tool-card">
+        <img src="buzz_icon.ico" width="32" height="32" alt="Buzz" class="tool-icon">
+        <div class="tool-name">Buzz</div>
+        <div class="tool-desc">Transcrição de entrevistas de investigação.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== 07 · REFLECTIONS ====== -->
+<section class="slide" id="s7" data-label="Reflections" aria-labelledby="h-ref">
+  <div class="slide-inner">
+    <header class="s-head">
+      <div class="s-index reveal">07 / Reflections</div>
+      <h2 id="h-ref" class="reveal" style="--d:80ms">O que levo para o próximo projecto.</h2>
+    </header>
+
+    <div class="reflect-grid">
+      <article class="reflect reveal" style="--d:160ms">
+        <div class="r-num">01</div>
+        <div>
+          <h4>Copy de segurança é trabalho de UI.</h4>
+        </div>
+      </article>
+      <article class="reflect reveal" style="--d:220ms">
+        <div class="r-num">02</div>
+        <div>
+          <h4>Lo-fi é demorado, mas acelera todo o restante processo.</h4>
+        </div>
+      </article>
+      <article class="reflect reveal" style="--d:280ms">
+        <div class="r-num">03</div>
+        <div>
+          <h4>Multi-perfil é o produto, não uma funcionalidade.</h4>
+        </div>
+      </article>
+      <article class="reflect reveal" style="--d:340ms">
+        <div class="r-num">04</div>
+        <div>
+          <h4>Design systems rendem juros compostos.</h4>
+        </div>
+      </article>
+    </div>
+
+    <div class="next-block reveal" style="--d:420ms">
+      <div class="kicker">O que faria a seguir</div>
+      <h3>Se tivesse mais quatro semanas.</h3>
+      <ul>
+        <li>Lançar o separador Histórico.</li>
+        <li>Teste de usabilidade específico para cuidadores.</li>
+        <li>Passagem para dark mode.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ====== 08 · END ====== -->
+<section class="slide end-slide" id="s8" data-label="Links" aria-labelledby="h-end">
+  <div class="slide-inner">
+    <div class="end-inner">
+      <div class="s-index reveal" style="text-align:left;">08 / End</div>
+      <h2 id="h-end" class="reveal" style="--d:80ms; margin-top:16px;">Obrigado por ver até ao fim.</h2>
+      <div class="cta-row reveal" style="--d:240ms; justify-content:center;">
+        <a class="btn btn-primary" href="https://broque-subvisual.github.io/medabot-prototype/" target="_blank" rel="noopener">
+          Abrir o protótipo
+          <svg class="arrw" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M9 7h8v8"/></svg>
+        </a>
+      </div>
+      <nav class="end-links reveal" style="--d:320ms" aria-label="External links">
+        <a class="ul-link" href="https://www.linkedin.com/in/broqueav/" target="_blank">LinkedIn</a>
+        <a class="ul-link" href="mailto:broque.av@gmail.com">Email</a>
+      </nav>
+      <div class="end-meta reveal" style="--d:400ms">Subvisual apprenticeship · 2026</div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<script>
+(() => {
+  'use strict';
+  const prefersReduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const mqMobile = matchMedia('(max-width: 767px)');
+
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const total = slides.length;
+  const dotsEl = document.getElementById('dots');
+  const counterCur = null;
+  const counterTot = null;
+  const progressBar = document.getElementById('progressBar');
+  const arrPrev = null;
+  const arrNext = null;
+  const scrollHint = document.getElementById('scrollHint');
+
+  // counterTot removed
+
+  // Build dot nav
+  slides.forEach((s, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.setAttribute('aria-label', `Go to section ${i+1}: ${s.dataset.label}`);
+    btn.innerHTML = `<span class="d"></span><span class="tip">${String(i+1).padStart(2,'0')} · ${s.dataset.label}</span>`;
+    btn.addEventListener('click', () => go(i));
+    dotsEl.appendChild(btn);
+  });
+  const dotBtns = Array.from(dotsEl.children);
+
+  let current = 0;
+  // init first
+  slides[0].classList.add('is-active');
+  updateChrome();
+
+  function updateChrome() {
+    const pct = total > 1 ? (current / (total - 1)) * 100 : 100;
+    progressBar.style.width = pct + '%';
+    dotBtns.forEach((b, i) => b.classList.toggle('on', i === current));
+  }
+
+  function go(to) {
+    if (mqMobile.matches) {
+      slides[to].scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    to = Math.max(0, Math.min(total - 1, to));
+    if (to === current) return;
+    const from = current;
+    current = to;
+    const leaving = slides[from];
+    const entering = slides[to];
+    leaving.classList.remove('is-active');
+    leaving.classList.add('is-leaving');
+    entering.classList.add('is-active');
+    // restart reveal animations inside entering slide
+    entering.querySelectorAll('.reveal').forEach(el => {
+      el.style.transition = 'none';
+      el.style.opacity = '';
+      el.style.transform = '';
+      // force reflow then clear inline transition
+      void el.offsetWidth;
+      el.style.transition = '';
+    });
+    setTimeout(() => leaving.classList.remove('is-leaving'), 520);
+    updateChrome();
+    dismissHint();
+    // also reset internal carousels when leaving their slide? Not needed, non-destructive.
+  }
+  window.__medabotGo = go;
+
+  // Prev/next buttons removed
+  document.querySelectorAll('[data-go-next]').forEach(b => b.addEventListener('click', () => go(current + 1)));
+
+  // Keyboard
+  window.addEventListener('keydown', (e) => {
+    if (mqMobile.matches) return;
+    if (e.target && ['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
+    switch (e.key) {
+      case 'ArrowDown': case 'ArrowRight': case 'PageDown': case ' ':
+        e.preventDefault(); go(current + 1); break;
+      case 'ArrowUp': case 'ArrowLeft': case 'PageUp':
+        e.preventDefault(); go(current - 1); break;
+      case 'Home': e.preventDefault(); go(0); break;
+      case 'End':  e.preventDefault(); go(total - 1); break;
+    }
+  });
+
+  // Scroll-wheel debounced navigation
+  let wheelLock = false;
+  let wheelAccum = 0;
+  const WHEEL_THRESHOLD = 30; // px of wheel delta to trigger
+  const WHEEL_LOCK_MS = 700;
+  window.addEventListener('wheel', (e) => {
+    if (mqMobile.matches) return;
+    // Let the BA slider and anything declared scroll-native handle its own wheel if needed
+    if (wheelLock) { e.preventDefault(); return; }
+    e.preventDefault();
+    wheelAccum += e.deltaY;
+    if (Math.abs(wheelAccum) > WHEEL_THRESHOLD) {
+      const dir = wheelAccum > 0 ? 1 : -1;
+      wheelAccum = 0;
+      wheelLock = true;
+      go(current + dir);
+      setTimeout(() => { wheelLock = false; wheelAccum = 0; }, WHEEL_LOCK_MS);
+    }
+  }, { passive: false });
+
+  // Touch swipe (desktop-ish touchpads; mobile falls back to scroll)
+  let touchStartY = null, touchStartX = null, touchHandled = false;
+  window.addEventListener('touchstart', (e) => {
+    if (mqMobile.matches) return;
+    if (e.touches.length !== 1) return;
+    touchStartY = e.touches[0].clientY;
+    touchStartX = e.touches[0].clientX;
+    touchHandled = false;
+  }, { passive: true });
+  window.addEventListener('touchmove', (e) => {
+    if (mqMobile.matches || touchHandled || touchStartY == null) return;
+    const dy = touchStartY - e.touches[0].clientY;
+    const dx = touchStartX - e.touches[0].clientX;
+    if (Math.abs(dy) > 40 && Math.abs(dy) > Math.abs(dx)) {
+      go(current + (dy > 0 ? 1 : -1));
+      touchHandled = true;
+    }
+  }, { passive: true });
+
+  // Dismiss scroll hint after first navigation or on last slide
+  let hintDismissed = false;
+  function dismissHint() {
+    if (current === total - 1 || !hintDismissed) {
+      hintDismissed = true;
+      scrollHint.classList.add('is-hidden');
+    }
+  }
+
+  // Mobile: show all dots but clicks scroll instead of crossfade
+  const syncMobileScroll = () => {
+    if (!mqMobile.matches) return;
+    const vh = window.innerHeight;
+    let best = 0, bestDist = Infinity;
+    slides.forEach((s, i) => {
+      const r = s.getBoundingClientRect();
+      const d = Math.abs(r.top);
+      if (d < bestDist) { bestDist = d; best = i; }
+    });
+    if (best !== current) { current = best; updateChrome(); }
+  };
+  window.addEventListener('scroll', () => { if (mqMobile.matches) syncMobileScroll(); }, { passive: true });
+
+  // Decisions carousel
+  const track = document.getElementById('decTrack');
+  const decDots = document.getElementById('decDots');
+  const decPrev = document.getElementById('decPrev');
+  const decNext = document.getElementById('decNext');
+  const decCur = document.getElementById('decCur');
+  const decCount = track ? track.children.length : 0;
+  let decIdx = 0;
+
+  if (track && decCount > 0) {
+    for (let i = 0; i < decCount; i++) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('aria-label', `Decision ${i+1}`);
+      b.addEventListener('click', () => setDec(i));
+      decDots.appendChild(b);
+    }
+    const decDotEls = Array.from(decDots.children);
+
+    function setDec(i) {
+      decIdx = (i + decCount) % decCount;
+      track.style.transform = `translateX(-${decIdx * 100}%)`;
+      decDotEls.forEach((b, bi) => b.classList.toggle('on', bi === decIdx));
+      if (decCur) decCur.textContent = String(decIdx + 1).padStart(2, '0');
+      decPrev.disabled = decIdx === 0;
+      decNext.disabled = decIdx === decCount - 1;
+    }
+    decPrev.addEventListener('click', () => setDec(decIdx - 1));
+    decNext.addEventListener('click', () => setDec(decIdx + 1));
+    setDec(0);
+  }
+
+  // Before/After slider
+  const slider = document.getElementById('baSlider');
+  const range = document.getElementById('baRange');
+  if (slider && range) {
+    const setCut = (v) => {
+      const pct = Math.max(0, Math.min(100, v));
+      slider.style.setProperty('--cut', pct + '%');
+    };
+    range.addEventListener('input', (e) => setCut(parseFloat(e.target.value)));
+    const onMove = (clientX) => {
+      const rect = slider.getBoundingClientRect();
+      const pct = ((clientX - rect.left) / rect.width) * 100;
+      range.value = pct;
+      setCut(pct);
+    };
+    let dragging = false;
+    slider.addEventListener('pointerdown', (e) => { dragging = true; onMove(e.clientX); slider.setPointerCapture(e.pointerId); });
+    slider.addEventListener('pointermove', (e) => { if (dragging) onMove(e.clientX); });
+    slider.addEventListener('pointerup', () => { dragging = false; });
+    slider.addEventListener('pointercancel', () => { dragging = false; });
+  }
+
+  // Issue data for before/after slider
+  var issueData = [
+    {
+      before: '<img src="danger_antes.png" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">',
+      after: '<img src="danger_depois.png" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">',
+      caption: 'Arrastar para comparar'
+    },
+    {
+      before: '<img src="criança_antes.png?v=2" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">',
+      after: '<img src="criança_depois.png?v=2" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">',
+      caption: 'Arrastar para comparar'
+    },
+    {
+      before: '<img src="voice_antes.png" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">',
+      after: '<img src="voice_depois.png" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">',
+      caption: 'Arrastar para comparar'
+    },
+    {
+      before: '<img src="resultado_antes.png" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">',
+      after: '<img src="resultado_depois.png" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">',
+      caption: 'Arrastar para comparar'
+    }
+  ];
+
+  var baBefore = document.getElementById('baBefore');
+  var baAfter = document.getElementById('baAfter');
+  var baCaption = document.getElementById('baCaption');
+  var testItems = document.querySelectorAll('.test-item[data-issue]');
+
+  function setIssue(idx) {
+    var d = issueData[idx];
+    if (!d || !baBefore || !baAfter) return;
+    baBefore.innerHTML = d.before;
+    baAfter.innerHTML = d.after;
+    if (baCaption) baCaption.textContent = d.caption;
+    if (range) { range.value = 50; }
+    if (slider) { slider.style.setProperty('--cut', '50%'); }
+    testItems.forEach(function(el) { el.classList.toggle('is-active', parseInt(el.dataset.issue) === idx); });
+  }
+
+  testItems.forEach(function(el) {
+    el.addEventListener('click', function() { setIssue(parseInt(el.dataset.issue)); });
+  });
+
+  setIssue(0);
+
+  // Auto-hide scroll hint disabled, keep visible as permanent footer hint
+
+  // Persist last slide (nice-to-have for refresh during iteration)
+  try {
+    const saved = parseInt(localStorage.getItem('medabot_slide') || '0', 10);
+    if (!isNaN(saved) && saved > 0 && saved < total && !mqMobile.matches) {
+      // silent jump, no crossfade
+      slides[0].classList.remove('is-active');
+      slides[saved].classList.add('is-active');
+      current = saved;
+      updateChrome();
+    }
+  } catch(_) {}
+  // observe current changes via MutationObserver-free simple polling on change
+  const origGo = window.__medabotGo;
+  window.__medabotGo = (i) => {
+    origGo(i);
+    try { localStorage.setItem('medabot_slide', String(current)); } catch(_) {}
+  };
+  // also persist on keyboard/button paths, go() isn't window.__medabotGo, so patch the local one:
+  const persist = () => { try { localStorage.setItem('medabot_slide', String(current)); } catch(_) {} };
+  dotBtns.forEach(b => b.addEventListener('click', () => setTimeout(persist, 10)));
+  window.addEventListener('keydown', () => setTimeout(persist, 10));
+  window.addEventListener('wheel', () => setTimeout(persist, 800), { passive: true });
+})();
+</script>
+
+</body>
+</html>
